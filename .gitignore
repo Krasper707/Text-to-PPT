@@ -1,0 +1,42 @@
+# --- Python Virtual Environments ---
+# Ignore the virtual environment directory created by `uv` or `venv`
+/.venv
+/venv
+/env
+/ENV
+
+# --- Python Cache Files ---
+# Ignore bytecode and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- IDE and Editor Folders ---
+# Ignore configuration files from popular editors
+.vscode/
+.idea/
+.project
+.pydevproject
+.spyderproject
+.ropeproject
+
+# --- Build and Distribution Artifacts ---
+# Ignore packaging and installation directories
+/dist/
+/build/
+*.egg-info/
+/downloads/
+/htmlcov/
+
+# --- Operating System Files ---
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# --- Logs and Local Config ---
+# Ignore log files and local environment variables
+*.log
+.env
+*.env.*
+!*.env.template
+!*.env.example
