@@ -2,8 +2,11 @@
 
 A publicly accessible web application that automatically generates a fully-formatted PowerPoint presentation from bulk text, using a provided template for styling, layout, and imagery.
 
-**Live Demo:** [Link will go here after you deploy in the next step!]
 
+**Live Demo:**[[Link]](https://text-to-ppt.streamlit.app/)
+
+Roll number: 24f2001293
+Name: Karthik Murali M
 ---
 
 ## How It Works
