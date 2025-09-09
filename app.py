@@ -8,7 +8,7 @@ from pptx import Presentation
 import io
 from typing import Union # <-- IMPORT THIS FOR OLDER PYTHON VERSIONS
 from pptx.enum.text import MSO_AUTO_SIZE
-
+import base64
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Your Text, Your Style", page_icon="✨", layout="centered")
@@ -221,6 +221,85 @@ def create_presentation(slide_data: dict, template_file) -> Union[io.BytesIO, No
         st.error(f"An error occurred while building slides: {e}")
         return None
 
+def create_revealjs_presentation(slide_data:dict,image_bank:list):
+    """Creates a simple RevealJS HTML presentation."""
+    try:
+        slides_html = ""
+        image_idx = 0
+        slides_list = slide_data.get('slides', [])
+
+        if not slides_list:
+            st.error("Cannot create Reveal.js slides: AI data is empty.")
+            return None
+
+        # Create the HTML for each slide as a <section>
+        for slide_info in slides_list:
+            title = slide_info.get('title', '')
+            content = slide_info.get('content', [])
+            notes = slide_info.get('speaker_notes', '')
+            visual_suggestion = slide_info.get('visual_suggestion', 'none').lower()
+
+            if isinstance(content, dict): content = list(content.values())
+
+            # Build the HTML for the bullet points
+            content_html = "<ul>\n"
+            for point in content:
+                if point.strip().startswith('- '):
+                    content_html += f"<ul><li>{point.strip().lstrip('- ').strip()}</li></ul>\n"
+                else:
+                    content_html += f"<li>{point}</li>\n"
+            content_html += "</ul>"
+            
+            # Embed an image if suggested and available
+            image_html = ""
+            if visual_suggestion != 'none' and image_bank:
+                img_stream = image_bank[image_idx % len(image_bank)]
+                img_stream.seek(0)
+                b64_img = base64.b64encode(img_stream.read()).decode('utf-8')
+                image_html = f'<img class="r-stretch" src="data:image/png;base64,{b64_img}" style="max-height: 450px; margin: auto;">'
+                image_idx += 1
+            
+            notes_html = f'<aside class="notes">{notes}</aside>' if notes else ''
+
+            # Assemble the final HTML for this slide
+            slides_html += f"""
+            <section>
+                <h2>{title}</h2>
+                {content_html}
+                {image_html}
+                {notes_html}
+            </section>
+            """
+
+        # Wrap the slides in the full Reveal.js HTML boilerplate
+        full_html = f"""
+        <!doctype html>
+        <html>
+            <head>
+                <meta charset="utf-8">
+                <title>{slides_list[0].get('title', 'Presentation')}</title>
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reset.min.css">
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.css">
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/theme/black.min.css" id="theme">
+            </head>
+            <body>
+                <div class="reveal">
+                    <div class="slides">
+                        {slides_html}
+                    </div>
+                </div>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.js"></script>
+                <script>
+                    Reveal.initialize({{ hash: true, plugins: [] }});
+                </script>
+            </body>
+        </html>
+        """
+        return full_html
+
+    except Exception as e:
+        st.error(f"An error occurred while building the Reveal.js HTML: {e}")
+        return None
 
 # =====================================================================================
 # UI COMPONENTS & WORKFLOW
@@ -294,22 +373,77 @@ with st.expander("Step 3: Upload Your Template", expanded=True):
     uploaded_template = st.file_uploader("Upload .pptx or .potx", type=['pptx', 'potx'], label_visibility="collapsed")
 
 st.divider()
+
+choice=st.radio("Which output would you prefer?",options=["PPTX file","RevealJS slides"],horizontal=True)
+# if st.button("🚀 Generate Presentation", type="primary", use_container_width=True):
+#     if not source_text or not aipipe_token or not st.session_state.selected_model or not uploaded_template:
+#         st.warning("Please complete all steps before generating.")
+#     else:
+#         with st.spinner("🤖 AI is structuring content and suggesting visuals..."):
+#             slide_data = generate_slide_content(source_text, guidance, aipipe_token, st.session_state.selected_model)
+#         if slide_data:
+#             st.success("✅ AI content generated!")
+#             with st.spinner("🎨 Applying styles and reusing images..."):
+#                 powerpoint_file = create_presentation(slide_data, uploaded_template)
+#             if powerpoint_file:
+#                 st.success("🎉 Your presentation is ready!")
+#                 st.download_button(
+#                     label="📥 Download Presentation (.pptx)",
+#                     data=powerpoint_file,
+#                     file_name="generated_presentation.pptx",
+#                     mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+#                     use_container_width=True
+#                 )
 if st.button("🚀 Generate Presentation", type="primary", use_container_width=True):
-    if not source_text or not aipipe_token or not st.session_state.selected_model or not uploaded_template:
-        st.warning("Please complete all steps before generating.")
+    # --- UPGRADED VALIDATION ---
+    # Basic checks that are always required
+    if not source_text or not aipipe_token or not st.session_state.selected_model:
+        st.warning("Please complete Steps 1 and 2 before generating.")
+    # PowerPoint-specific check
+    elif choice == "PPTX file" and not uploaded_template:
+        st.warning("Please upload a PowerPoint template in Step 3 for PPTX generation.")
     else:
         with st.spinner("🤖 AI is structuring content and suggesting visuals..."):
             slide_data = generate_slide_content(source_text, guidance, aipipe_token, st.session_state.selected_model)
+        
         if slide_data:
-            st.success("✅ AI content generated!")
-            with st.spinner("🎨 Applying styles and reusing images..."):
-                powerpoint_file = create_presentation(slide_data, uploaded_template)
-            if powerpoint_file:
-                st.success("🎉 Your presentation is ready!")
-                st.download_button(
-                    label="📥 Download Presentation (.pptx)",
-                    data=powerpoint_file,
-                    file_name="generated_presentation.pptx",
-                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                    use_container_width=True
-                )
+                    st.success("✅ AI content generated!")
+
+                    # --- UPDATED LOGIC with Safety Nets ---
+
+                    if choice == "PPTX file":
+                        with st.spinner("🎨 Applying styles and building PowerPoint..."):
+                            output_file = create_presentation(slide_data, uploaded_template)
+                        
+                        if output_file:
+                            st.success("🎉 Your PowerPoint presentation is ready!")
+                            st.download_button(
+                                label="📥 Download Presentation (.pptx)",
+                                data=output_file,
+                                file_name="generated_presentation.pptx",
+                                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                use_container_width=True
+                            )
+                        # --- THIS IS THE NEW SAFETY NET ---
+                        else:
+                            st.error("Failed to build the PowerPoint file. Please check for any errors above, the template file might be incompatible.")
+
+                    elif choice == "RevealJS slides":
+                        with st.spinner("🌐 Weaving HTML and embedding images for Reveal.js..."):
+                            image_bank = []
+                            if uploaded_template:
+                                _, _, image_bank = analyze_template(uploaded_template)
+                            output_file = create_revealjs_presentation(slide_data, image_bank)
+
+                        if output_file:
+                            st.success("🎉 Your Reveal.js slideshow is ready!")
+                            st.download_button(
+                                label="📥 Download Slideshow (.html)",
+                                data=output_file,
+                                file_name="generated_slideshow.html",
+                                mime="text/html",
+                                use_container_width=True
+                            )
+                        # --- THIS IS THE NEW SAFETY NET ---
+                        else:
+                            st.error("Failed to build the Reveal.js slideshow. Please check for any errors reported above.")
